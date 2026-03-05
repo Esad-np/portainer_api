@@ -1,0 +1,36 @@
+# Portainer Server Configuration
+# Authentication credentials and server endpoint details
+
+server:
+  # Portainer server URL
+  url: ${PORTAINER_URL}
+  
+  # Skip SSL verification (not recommended for production)
+  verify_ssl: false
+  
+  # Default environment/endpoint ID (can be overridden per command)
+  default_endpoint_id: 1
+
+# Authentication credentials
+auth:
+  # Username for Portainer authentication
+  username: ${PORTAINER_USERNAME}
+  
+  # Password for Portainer authentication
+  # SECURITY: In production, use environment variables instead
+  # password: "${PORTAINER_PASSWORD}"
+  password: "${PORTAINER_PASSWORD}"
+
+# Logging configuration for API calls
+logging:
+  # Log API requests/responses
+  log_requests: true
+  
+  # Log level for Portainer client
+  level: "INFO"
+
+# Optional: API request timeout in seconds
+request_timeout: 240
+
+# Optional: Cache JWT tokens to reduce authentication calls
+cache_tokens: true
