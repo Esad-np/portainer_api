@@ -12,7 +12,7 @@ COMMAND=""
 STACK_NAME=""
 VERBOSE=0
 
-# Simple arg parsing: --command|-c, --stack-name|-s, positional start|stop
+# Simple arg parsing: --command|-c, --stack-name|-s, --verbose|-v
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
@@ -26,13 +26,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --verbose|-v)
             VERBOSE=1
-            shift
-            ;;
-        start|stop)
-            # positional convenience
-            if [ -z "$COMMAND" ]; then
-                COMMAND="$1"
-            fi
             shift
             ;;
         *)
