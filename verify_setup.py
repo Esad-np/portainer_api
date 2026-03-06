@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import subprocess
+import argparse
 
 # Add Scripts to path
 scripts_dir = Path(__file__).parent / "Scripts"
@@ -29,6 +30,16 @@ RED = "\033[91m"
 YELLOW = "\033[93m"
 BLUE = "\033[94m"
 RESET = "\033[0m"
+
+
+# Verbosity level: 0=quiet, 1=verbose, 2=debug
+VERBOSE = 0
+
+
+def print_debug(text, level=1):
+    """Print debug text only when VERBOSE >= level."""
+    if VERBOSE >= level:
+        print(f"{BLUE}DBG {text}{RESET}")
 
 
 def print_header(text):
@@ -65,6 +76,7 @@ def check_environment():
     # Check Python version
     if sys.version_info >= (3, 11):
         print_success(f"Python {sys.version.split()[0]} (required: 3.11+)")
+        print_debug(f"Python full sys.version: {sys.version}")
     else:
         print_error(f"Python {sys.version.split()[0]} (required: 3.11+)")
         return False
@@ -143,15 +155,23 @@ def check_venv():
             return True
 
         print_success(f"Virtualenv python reported: {version_out}")
-
-        # basic version check
+        # basic version check (require >= 3.11)
         parts = version_out.split()
         if len(parts) >= 2:
             ver = parts[1]
-            major = int(ver.split('.')[0])
-            if major < 3:
+            segs = ver.split('.')
+            try:
+                major = int(segs[0])
+                minor = int(segs[1]) if len(segs) > 1 else 0
+            except Exception:
+                print_debug(f"Failed to parse python version string: {ver}")
+                return True
+
+            print_debug(f"Virtualenv python version parsed: {ver} (major={major}, minor={minor})")
+            if major < 3 or (major == 3 and minor < 11):
                 print_error(f"Virtualenv python version {ver} is too old; requires Python 3.11+")
                 return False
+
         return True
     except Exception as e:
         print_warning(f"Failed to run virtualenv python: {e}")
@@ -170,8 +190,14 @@ def check_dependencies():
     all_ok = True
     for package, description in required_packages.items():
         try:
-            __import__(package)
+            mod = __import__(package)
             print_success(f"{package}: {description}")
+            try:
+                path = getattr(mod, "__file__", None)
+                if path:
+                    print_debug(f"{package} module path: {path}")
+            except Exception:
+                pass
         except ImportError:
             print_error(f"{package}: {description} (NOT INSTALLED)")
             all_ok = False
@@ -209,6 +235,17 @@ def check_configuration():
         print_info(f"Server URL: {server_url}")
         print_info(f"Username: {username}")
         print_info(f"Verify SSL: {verify_ssl}")
+        try:
+            # Mask password if present and print safe copy when verbose/debug
+            safe = {}
+            for k, v in portainer_config.items():
+                if k == "auth" and isinstance(v, dict):
+                    safe[k] = {"username": v.get("username"), "password": ("***" if v.get("password") else None)}
+                else:
+                    safe[k] = v
+            print_debug(f"Full portainer config (masked): {safe}")
+        except Exception:
+            print_debug("Failed to show full portainer config")
         
         if username == "your-password-here" :
             print_warning("\nConfiguration needs to be updated:")
@@ -235,6 +272,7 @@ def check_connectivity():
         
         server_url = portainer_config["server"]["url"]
         print_info(f"Attempting to connect to: {server_url}")
+        print_debug(f"Connectivity config keys: {list(portainer_config.keys())}")
         
         client = PortainerClient(
             url=server_url,
@@ -246,6 +284,7 @@ def check_connectivity():
         
         # Try to authenticate
         print_info("Authenticating...")
+        print_debug(f"Authenticating as user: {portainer_config['auth'].get('username')}")
         client._authenticate()
         print_success("Authentication successful!")
         
@@ -253,6 +292,12 @@ def check_connectivity():
         print_info("Retrieving stacks...")
         stacks = client.get_stacks()
         print_success(f"Retrieved {len(stacks)} stacks")
+        if VERBOSE >= 2:
+            try:
+                names = [s.get('Name') or s.get('name') or '<unknown>' for s in stacks]
+            except Exception:
+                names = []
+            print_debug(f"Stack names: {names}")
         
         return True
     except PortainerAuthError as e:
@@ -292,6 +337,17 @@ def show_next_steps():
 
 def main():
     """Run all checks."""
+    parser = argparse.ArgumentParser(prog="verify_setup.py", description="Portainer API setup verifier")
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug output (more than verbose)')
+    args = parser.parse_args()
+
+    global VERBOSE
+    if args.debug:
+        VERBOSE = 2
+    elif args.verbose:
+        VERBOSE = 1
+
     print(f"\n{BLUE}Portainer API Setup Verification{RESET}")
     
     checks = [
