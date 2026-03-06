@@ -10,6 +10,7 @@ import sys
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import subprocess
 
 # Add Scripts to path
 scripts_dir = Path(__file__).parent / "Scripts"
@@ -69,6 +70,92 @@ def check_environment():
         return False
     
     return True
+
+
+def check_venv():
+    """Check that the virtual environment is present and contains a working Python."""
+    print_header("Virtualenv Check")
+
+    # Determine venv path from env var or default
+    venv_env = os.environ.get("PORTAINER_API_VENV")
+    project_root = Path(__file__).parent
+
+    candidates = []
+    if venv_env:
+        venv_path = Path(venv_env)
+        # if it points to an activate script directly, use its parent
+        if venv_path.is_file():
+            candidates.append(venv_path)
+        if (venv_path / "bin" / "activate").exists():
+            candidates.append(venv_path / "bin" / "activate")
+        if (venv_path / "Scripts" / "activate").exists():
+            candidates.append(venv_path / "Scripts" / "activate")
+
+    # default local venv
+    candidates.append(project_root / "venv" / "bin" / "activate")
+    candidates.append(project_root / "venv" / "Scripts" / "activate")
+
+    found_activate = None
+    for c in candidates:
+        try:
+            if Path(c).exists():
+                found_activate = Path(c)
+                break
+        except Exception:
+            continue
+
+    if not found_activate:
+        print_error("Virtualenv activate script not found. Set PORTAINER_API_VENV or create ./venv.")
+        return False
+
+    print_success(f"Found virtualenv activate script: {found_activate}")
+
+    # determine python executable next to activate script
+    activate_parent = found_activate.parent.parent if found_activate.name == "activate" else found_activate.parent
+    # typical structure: <venv>/bin/activate -> python at <venv>/bin/python
+    python_candidate = None
+    # try bin/python
+    p1 = activate_parent / "bin" / "python"
+    p2 = activate_parent / "python"
+    p3 = activate_parent / "Scripts" / "python.exe"
+    for p in (p1, p2, p3):
+        if p.exists():
+            python_candidate = p
+            break
+
+    if not python_candidate:
+        # try relative from activate location
+        possible = found_activate.parent / "python"
+        if possible.exists():
+            python_candidate = possible
+
+    if not python_candidate:
+        print_warning("Could not locate a python executable inside the virtualenv; continuing but this may fail.")
+        return True
+
+    print_info(f"Using virtualenv python: {python_candidate}")
+
+    try:
+        proc = subprocess.run([str(python_candidate), "--version"], capture_output=True, text=True, timeout=5)
+        version_out = proc.stdout.strip() or proc.stderr.strip()
+        if proc.returncode != 0:
+            print_warning(f"Virtualenv python returned non-zero exit: {version_out}")
+            return True
+
+        print_success(f"Virtualenv python reported: {version_out}")
+
+        # basic version check
+        parts = version_out.split()
+        if len(parts) >= 2:
+            ver = parts[1]
+            major = int(ver.split('.')[0])
+            if major < 3:
+                print_error(f"Virtualenv python version {ver} is too old; requires Python 3.11+")
+                return False
+        return True
+    except Exception as e:
+        print_warning(f"Failed to run virtualenv python: {e}")
+        return True
 
 
 def check_dependencies():
@@ -209,6 +296,7 @@ def main():
     
     checks = [
         ("Environment", check_environment),
+        ("Virtualenv", check_venv),
         ("Dependencies", check_dependencies),
         ("Configuration", check_configuration),
         ("Connectivity", check_connectivity),
