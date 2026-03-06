@@ -20,7 +20,7 @@ project_root = Path(__file__).parent
 env_file = project_root / ".env"
 if env_file.exists():
     load_dotenv(dotenv_path=env_file)
-    print_info(f"Loaded environment variables from {env_file}")
+    print(f"Loaded environment variables from {env_file}")
 
 # Color codes for output
 GREEN = "\033[92m"
