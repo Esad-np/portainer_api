@@ -12,6 +12,20 @@ COMMAND=""
 STACK_NAME=""
 VERBOSE=0
 
+# Print usage and example
+usage() {
+    cat <<EOF
+Usage: $0 --command start|stop --stack-name <name> [--verbose]
+
+Example:
+    # use default ./venv
+    ./stop_start_lrcget_watcher.sh --command start --stack-name lrcget-watcher
+
+    # specify custom virtualenv
+    PORTAINER_API_VENV=/path/to/venv ./stop_start_lrcget_watcher.sh --command stop --stack-name lrcget-watcher --verbose
+EOF
+}
+
 # Simple arg parsing: --command|-c, --stack-name|-s, --verbose|-v
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -30,20 +44,20 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 --command start|stop --stack-name <name> [--verbose]"
+            usage
             exit 1
             ;;
     esac
 done
 
 if [ -z "$COMMAND" ] || { [ "$COMMAND" != "start" ] && [ "$COMMAND" != "stop" ]; }; then
-    echo "Usage: $0 --command start|stop --stack-name <name> [--verbose]"
+    usage
     exit 1
 fi
 
 if [ -z "$STACK_NAME" ]; then
     echo "Error: --stack-name is required and has no default."
-    echo "Usage: $0 --command start|stop --stack-name <name> [--verbose]"
+    usage
     exit 1
 fi
 
