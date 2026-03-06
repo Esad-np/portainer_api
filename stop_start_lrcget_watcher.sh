@@ -19,10 +19,10 @@ Usage: $0 --command start|stop --stack-name <name> [--verbose]
 
 Example:
     # use default ./venv
-    ./stop_start_lrcget_watcher.sh --command start --stack-name lrcget-watcher
+    ./stop_start_lrcget_watcher.sh --command start --stack-name STACK_NAME --verbose
 
     # specify custom virtualenv
-    PORTAINER_API_VENV=/path/to/venv ./stop_start_lrcget_watcher.sh --command stop --stack-name lrcget-watcher --verbose
+    PORTAINER_API_VENV=/path/to/venv ./stop_start_lrcget_watcher.sh --command stop --stack-name STACK_NAME --verbose
 EOF
 }
 
@@ -78,16 +78,24 @@ fi
 # Determine virtualenv activate script from PORTAINER_API_VENV or default to ./venv
 VENV_ACTIVATE=""
 if [ -n "$PORTAINER_API_VENV" ]; then
-    # If PORTAINER_API_VENV points directly to an activate script
-    if [ -f "$PORTAINER_API_VENV" ]; then
-        VENV_ACTIVATE="$PORTAINER_API_VENV"
-    # If it points to a venv directory, look for bin/activate
-    elif [ -f "$PORTAINER_API_VENV/bin/activate" ]; then
-        VENV_ACTIVATE="$PORTAINER_API_VENV/bin/activate"
-    else
-        echo "PORTAINER_API_VENV is set but no activate script found at $PORTAINER_API_VENV or $PORTAINER_API_VENV/bin/activate"
-        exit 1
-    fi
+        # Expand ~ and environment variables, and resolve relative paths
+        EXPANDED_VENV=$(eval echo "$PORTAINER_API_VENV")
+        if [[ "$EXPANDED_VENV" != /* ]]; then
+                EXPANDED_VENV="$(pwd)/$EXPANDED_VENV"
+        fi
+
+        # If PORTAINER_API_VENV points directly to an activate script
+        if [ -f "$EXPANDED_VENV" ]; then
+            VENV_ACTIVATE="$EXPANDED_VENV"
+        # If it points to a venv directory, look for bin/activate or Scripts/activate
+        elif [ -f "$EXPANDED_VENV/bin/activate" ]; then
+            VENV_ACTIVATE="$EXPANDED_VENV/bin/activate"
+        elif [ -f "$EXPANDED_VENV/Scripts/activate" ]; then
+            VENV_ACTIVATE="$EXPANDED_VENV/Scripts/activate"
+        else
+            echo "PORTAINER_API_VENV is set but no activate script found at $EXPANDED_VENV or $EXPANDED_VENV/bin/activate"
+            exit 1
+        fi
 else
     if [ -f "venv/bin/activate" ]; then
         VENV_ACTIVATE="venv/bin/activate"
