@@ -94,7 +94,10 @@ def check_venv():
 
     candidates = []
     if venv_env:
-        venv_path = Path(venv_env)
+        # expand ~ and handle relative paths
+        venv_path = Path(os.path.expanduser(venv_env))
+        if not venv_path.is_absolute():
+            venv_path = (project_root / venv_path).resolve()
         # if it points to an activate script directly, use its parent
         if venv_path.is_file():
             candidates.append(venv_path)
