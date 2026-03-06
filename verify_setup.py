@@ -9,10 +9,18 @@ to the Portainer server.
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add Scripts to path
 scripts_dir = Path(__file__).parent / "Scripts"
 sys.path.insert(0, str(scripts_dir))
+
+# Load environment variables from .env if present
+project_root = Path(__file__).parent
+env_file = project_root / ".env"
+if env_file.exists():
+    load_dotenv(dotenv_path=env_file)
+    print_info(f"Loaded environment variables from {env_file}")
 
 # Color codes for output
 GREEN = "\033[92m"
