@@ -130,11 +130,21 @@ class StackManager:
         endpoint_id = endpoint_id or self.default_endpoint_id
         
         try:
+            # Check current status first to avoid redundant start
+            try:
+                current = self.get_stack(stack_id)
+            except StackManagerError:
+                current = None
+
+            if current and current.status == StackStatus.RUNNING.value:
+                logger.info(f"Stack {stack_id} is already running; skipping start")
+                return current
+
             logger.info(f"Starting stack {stack_id} on endpoint {endpoint_id}")
             stack_data = self.client.start_stack(stack_id, endpoint_id)
-            
+
             logger.info(f"Stack {stack_id} started successfully")
-            
+
             return Stack(
                 id=stack_data.get("Id"),
                 name=stack_data.get("Name"),
@@ -161,11 +171,21 @@ class StackManager:
         endpoint_id = endpoint_id or self.default_endpoint_id
         
         try:
+            # Check current status first to avoid redundant stop
+            try:
+                current = self.get_stack(stack_id)
+            except StackManagerError:
+                current = None
+
+            if current and current.status == StackStatus.STOPPED.value:
+                logger.info(f"Stack {stack_id} is already stopped; skipping stop")
+                return current
+
             logger.info(f"Stopping stack {stack_id} on endpoint {endpoint_id}")
             stack_data = self.client.stop_stack(stack_id, endpoint_id)
-            
+
             logger.info(f"Stack {stack_id} stopped successfully")
-            
+
             return Stack(
                 id=stack_data.get("Id"),
                 name=stack_data.get("Name"),
