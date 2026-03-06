@@ -72,3 +72,4 @@ logs/
 # Project specific
 *.tmp
 *.bak
+Scripts/prune_images_except.sh
