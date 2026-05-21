@@ -6,15 +6,20 @@ Provides CLI commands to interact with Portainer stacks:
 - start: Start a stopped stack
 - stop: Stop a running stack
 - inspect: Get details about a specific stack
+- backup-all: Export stack definitions to local files
 """
 
 import sys
 import argparse
 import logging
+from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
 
 from config import create_config_manager, ConfigError
 from portainer_client import PortainerClient, PortainerAuthError, PortainerAPIError
+from stack_backup import StackBackupError, export_all_stacks
 from stack_manager import StackManager, StackManagerError
 
 
@@ -24,6 +29,13 @@ def setup_logging(level: str = "INFO") -> None:
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+
+
+def load_project_env() -> None:
+    """Load project-local environment variables when a .env file exists."""
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
 
 
 def print_stacks_table(stacks: list) -> None:
@@ -235,7 +247,7 @@ def cmd_inspect(args) -> int:
         # Get stack details
         stack = manager.get_stack(stack_id)
         
-        print(f"\nStack Details:")
+        print("\nStack Details:")
         print(f"  ID:          {stack.id}")
         print(f"  Name:        {stack.name}")
         print(f"  Status:      {stack.status_name}")
@@ -252,6 +264,40 @@ def cmd_inspect(args) -> int:
         print(f"Authentication error: {e}", file=sys.stderr)
         return 1
     except StackManagerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_backup(args) -> int:
+    """Export all supported stack definitions to local backup files."""
+    try:
+        output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+        manifest = export_all_stacks(output_dir)
+
+        print(f"Backed up {manifest['exported_count']} stack(s) to {manifest['output_dir']}")
+        if manifest["skipped"]:
+            print(f"Skipped {manifest['skipped_count']} unsupported stack(s):")
+            for skipped in manifest["skipped"]:
+                print(f"  - {skipped['name']} (ID: {skipped['id']}): {skipped['reason']}")
+
+        if manifest["failed"]:
+            print(f"Failed to export {manifest['failed_count']} stack(s):", file=sys.stderr)
+            for failed in manifest["failed"]:
+                print(f"  - {failed['name']} (ID: {failed['id']}): {failed['reason']}", file=sys.stderr)
+            return 1
+
+        return 0
+
+    except ConfigError as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
+        return 1
+    except PortainerAuthError as e:
+        print(f"Authentication error: {e}", file=sys.stderr)
+        return 1
+    except (PortainerAPIError, StackBackupError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
@@ -285,6 +331,9 @@ Examples:
   
   # Get details about a stack
   %(prog)s inspect --id 1
+
+  # Export all supported stack definitions
+  %(prog)s backup-all --output-dir ./backups/portainer
         """,
     )
     
@@ -356,8 +405,20 @@ Examples:
         help="Stack name"
     )
     inspect_parser.set_defaults(func=cmd_inspect)
-    
+
+    # Backup command
+    backup_parser = subparsers.add_parser(
+        "backup-all",
+        help="Export all supported stack definitions to local files"
+    )
+    backup_parser.add_argument(
+        "--output-dir",
+        help="Directory to write this backup run into"
+    )
+    backup_parser.set_defaults(func=cmd_backup)
+
     args = parser.parse_args(argv)
+    load_project_env()
     
     # Setup logging
     log_level = "DEBUG" if args.verbose else "INFO"

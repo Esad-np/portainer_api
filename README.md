@@ -84,6 +84,11 @@ python Scripts/main.py inspect --id 1
 python Scripts/main.py list --endpoint-id 1
 ```
 
+**Back up all supported stack definitions to local files:**
+```bash
+python Scripts/main.py backup-all --output-dir ./Stacks/20260521
+```
+
 **Verbose output:**
 ```bash
 python Scripts/main.py -v list
@@ -183,6 +188,7 @@ export PORTAINER_PASSWORD="your-password"
 | Get stack | `inspect --id <id>` | GET `/stacks/{id}` |
 | Start stack | `start --id <id>` | POST `/stacks/{id}/start` |
 | Stop stack | `stop --id <id>` | POST `/stacks/{id}/stop` |
+| Export stack file | `backup-all --output-dir <dir>` | GET `/stacks/{id}/file` |
 
 ### Stack Status
 
@@ -213,6 +219,31 @@ The client includes error handling for:
 3. **Restrict file permissions** - Protect `config/portainer.yaml`
 4. **Use strong passwords** - Portainer credentials should be secure
 5. **Rotate tokens** - JWT tokens are cached; implement rotation as needed
+6. **Protect backup output** - Exported stack metadata may include environment variables and other sensitive values
+
+## Stack Backups
+
+The `backup-all` command exports each supported Docker stack into its own directory:
+
+```text
+<output-dir>/
+├── manifest.json
+├── status.json
+└── <stack-name>/
+    ├── docker_compose.yml
+    └── metadata.json
+```
+
+- Wrapper script always writes to a dated subfolder under chosen parent directory
+- Wrapper script default layout: `scripts/Stacks/YYYYMMDD/<STACK_NAME>/docker_compose.yml`
+- Wrapper example with custom parent directory: `backup_portainer_stacks.sh --output-dir /media/hdd2t/docker/portainer_stacks`
+- Only newest 10 date folders are kept under `Stacks/`
+- Running backup again on same date overwrites that date folder before exporting new files
+- `manifest.json` lists exported, skipped, and failed stacks for the run
+- `status.json` records whether the backup finished cleanly
+- `metadata.json` stores the raw stack details returned by Portainer so environment variables and deployment metadata are preserved
+
+Kubernetes stacks are skipped because Portainer does not expose them through the same stack-file endpoint used for Docker stacks.
 
 ## API Documentation
 
@@ -260,4 +291,3 @@ Add your license information here.
 ## Contributing
 
 Guidelines for contributing to this project.
-

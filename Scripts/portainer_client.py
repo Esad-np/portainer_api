@@ -68,6 +68,7 @@ class PortainerClient:
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        _retry_on_auth: bool = True,
         **kwargs,
     ) -> requests.Response:
         """
@@ -113,20 +114,33 @@ class PortainerClient:
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
-            if response.status_code == 401:
+            status_code = e.response.status_code if e.response is not None else None
+            response_text = e.response.text if e.response is not None else str(e)
+
+            if status_code == 401 and _retry_on_auth:
                 # Token expired, re-authenticate and retry
                 self.auth_token = None
-                if not self.auth_token:
-                    self._authenticate()
-                return self._make_request(method, endpoint, data, params, **kwargs)
-            logger.error(f"HTTP error {response.status_code}: {response.text}")
-            raise
+                self._authenticate()
+                return self._make_request(
+                    method,
+                    endpoint,
+                    data,
+                    params,
+                    _retry_on_auth=False,
+                    **kwargs,
+                )
+
+            logger.error(f"HTTP error {status_code}: {response_text}")
+            raise PortainerAPIError(f"API request failed ({status_code}): {response_text}") from e
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error: {str(e)}")
-            raise
+            raise PortainerAPIError(f"Connection error: {str(e)}") from e
         except requests.exceptions.Timeout as e:
             logger.error(f"Request timeout: {str(e)}")
-            raise
+            raise PortainerAPIError(f"Request timeout: {str(e)}") from e
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error: {str(e)}")
+            raise PortainerAPIError(f"Request error: {str(e)}") from e
 
     def _authenticate(self) -> None:
         """
@@ -158,7 +172,7 @@ class PortainerClient:
                 issued_at=datetime.now(),
             )
             logger.info("Authentication successful")
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             if response.status_code == 422:
                 raise PortainerAuthError("Invalid credentials (username or password)")
             raise PortainerAuthError(f"Authentication failed: {response.text}")
@@ -190,6 +204,30 @@ class PortainerClient:
         """
         response = self._make_request("GET", f"/stacks/{stack_id}")
         return response.json()
+
+    def get_stack_file_content(self, stack_id: int) -> str:
+        """
+        Retrieve the compose file content for a specific stack.
+
+        Args:
+            stack_id: Stack identifier
+
+        Returns:
+            Stack file content as text
+        """
+        response = self._make_request("GET", f"/stacks/{stack_id}/file")
+        payload = response.json()
+
+        if not isinstance(payload, dict):
+            raise PortainerAPIError(f"Unexpected response for stack file {stack_id}: {payload!r}")
+
+        stack_file_content = payload.get("StackFileContent")
+        if not isinstance(stack_file_content, str):
+            raise PortainerAPIError(
+                f"Stack file response for {stack_id} did not include StackFileContent"
+            )
+
+        return stack_file_content
 
     def start_stack(self, stack_id: int, endpoint_id: int) -> Dict[str, Any]:
         """

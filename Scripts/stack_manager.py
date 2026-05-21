@@ -6,11 +6,11 @@ Supports listing, starting, stopping, and deleting stacks.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from portainer_client import PortainerClient, PortainerAuthError, PortainerAPIError
+from portainer_client import PortainerClient
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,22 @@ class StackManager:
         except Exception as e:
             logger.error(f"Failed to get stack {stack_id}: {str(e)}")
             raise StackManagerError(f"Failed to get stack {stack_id}: {str(e)}")
+
+    def get_stack_file_content(self, stack_id: int) -> str:
+        """
+        Retrieve the compose file content for a specific stack.
+
+        Args:
+            stack_id: Stack identifier
+
+        Returns:
+            Stack file content as text
+        """
+        try:
+            return self.client.get_stack_file_content(stack_id)
+        except Exception as e:
+            logger.error(f"Failed to retrieve stack file for {stack_id}: {str(e)}")
+            raise StackManagerError(f"Failed to retrieve stack file for {stack_id}: {str(e)}")
 
     def start_stack(self, stack_id: int, endpoint_id: Optional[int] = None) -> Stack:
         """
