@@ -235,7 +235,7 @@ The `backup-all` command exports each supported Docker stack into its own direct
 ```
 
 - Wrapper script always writes to a dated subfolder under chosen parent directory
-- Wrapper script default layout: `scripts/Stacks/YYYYMMDD/<STACK_NAME>/docker_compose.yml`
+- Wrapper script default layout: `scripts/Stacks/YYYYMMDD/<STACK_NAME>/docker-compose.yml`
 - Wrapper example with custom parent directory: `backup_portainer_stacks.sh --output-dir /media/hdd2t/docker/portainer_stacks`
 - Only newest 10 date folders are kept under `Stacks/`
 - Running backup again on same date overwrites that date folder before exporting new files

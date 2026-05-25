@@ -202,7 +202,7 @@ def _write_stack_backup(
 
 def _compose_filename(entry_point: Any) -> str:
     _ = entry_point
-    return "docker_compose.yml"
+    return "docker-compose.yml"
 
 
 def _sanitize_path_component(value: str) -> str:
